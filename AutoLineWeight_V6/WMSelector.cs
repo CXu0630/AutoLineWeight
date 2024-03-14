@@ -25,10 +25,11 @@ namespace AutoLineWeight_V6
     public class WMSelector : SimpleSelector
     {
         // initialize user options
-        bool includeClipping = false;
-        bool includeHidden = false;
-        bool includeSceneSilhouette = true;
-        bool includeIntersect = true;
+        public bool includeClipping {  get; set; }
+        public bool includeHidden { get; set; }
+        public bool includeSceneSilhouette {  get; set; }
+        public bool includeIntersect {  get; set; }
+        public bool colorBySource {  get; set; }
 
         // initialize option toggles
         // these are set as global variables to facilitate access
@@ -36,6 +37,7 @@ namespace AutoLineWeight_V6
         private OptionToggle optIncludeHidden;
         private OptionToggle optSceneSilhouette;
         private OptionToggle optIntersect;
+        private OptionToggle optColorBySource;
 
         /// <summary>
         /// Custom setup method for WMSelector.
@@ -57,19 +59,21 @@ namespace AutoLineWeight_V6
             getObject.SetCommandPrompt("Select geometry for the weighted make2d");
 
             // create option toggles
-            optIncludeClipping = new OptionToggle(includeClipping, "Disable", "Enable");
-            optIncludeHidden = new OptionToggle(includeHidden, "Disable", "Enable");
-            optSceneSilhouette = new OptionToggle(includeSceneSilhouette, "Disable", "Enable");
-            optIntersect = new OptionToggle(includeIntersect, "Disable", "Enable");
+            optColorBySource = new OptionToggle(colorBySource, "Off", "On");
+            optIntersect = new OptionToggle(includeIntersect, "Off", "On");
+            optIncludeClipping = new OptionToggle(includeClipping, "Off", "On");
+            optIncludeHidden = new OptionToggle(includeHidden, "Off", "On");
+            optSceneSilhouette = new OptionToggle(includeSceneSilhouette, "Off", "On");
 
             // add option toggles to getObject
+            getObject.AddOptionToggle("Color_By_Source", ref optColorBySource);
             getObject.AddOptionToggle("Calculate_Intersections", ref optIntersect);
             getObject.AddOptionToggle("Include_Scene_Silhouette", ref optSceneSilhouette);
             getObject.AddOptionToggle("Include_Clipping_Planes", ref optIncludeClipping);
             getObject.AddOptionToggle("Include_Hidden_Lines", ref optIncludeHidden);
 
             // set warning
-            RhinoApp.WriteLine("WARNING: for the current build, including clipping planes " +
+            RhinoApp.WriteLine("WARNING: for the current version, including clipping planes " +
                 "and generating silhouettes are mutually exclusive. If both are enabled, " +
                 "scene silhouettes will be prioritized. Please process these separately.");
         }
@@ -80,30 +84,21 @@ namespace AutoLineWeight_V6
         /// </summary>
         protected override void ModifyOptions(GetObject getObject)
         {
+            this.colorBySource = optColorBySource.CurrentValue;
+            this.includeIntersect = optIntersect.CurrentValue;
             this.includeClipping = optIncludeClipping.CurrentValue;
             this.includeHidden = optIncludeHidden.CurrentValue;
             this.includeSceneSilhouette = optSceneSilhouette.CurrentValue;
-            this.includeIntersect = optIntersect.CurrentValue;
         }
 
-        public bool GetIncludeClipping()
+        public void SetDefaultValues (bool clipping, bool hidden, bool silhouette, 
+            bool intersect, bool colorBySource)
         {
-            return this.includeClipping;
-        }
-
-        public bool GetIncludeHidden()
-        {
-            return this.includeHidden;
-        }
-
-        public bool GetIndluceSceneSilhouette()
-        {
-            return this.includeSceneSilhouette;
-        }
-
-        public bool GetIndluceIntersect()
-        {
-            return this.includeIntersect;
+            this.colorBySource = colorBySource;
+            this.includeIntersect = intersect;
+            this.includeClipping = clipping;
+            this.includeHidden = hidden;
+            this.includeSceneSilhouette = silhouette;
         }
     }
 }

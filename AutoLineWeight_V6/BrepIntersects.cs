@@ -3,13 +3,15 @@ using Rhino.Commands;
 using Rhino.Geometry;
 using Rhino.Geometry.Intersect;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace AutoLineWeight_V6
 {
     public class BrepIntersects : Command
     {
         Rhino.DocObjects.ObjRef[] objSel;
-        List<Curve> intersects = new List<Curve>();
+        ConcurrentBag<Curve> intersects = new ConcurrentBag<Curve>();
         public BrepIntersects(Rhino.DocObjects.ObjRef[] sourceObjSel)
         {
             Instance = this;
@@ -23,12 +25,13 @@ namespace AutoLineWeight_V6
 
         protected override Result RunCommand(RhinoDoc doc, RunMode mode)
         {
+            double tol = doc.ModelAbsoluteTolerance;
             int len = objSel.Length;
-            for (int i = 0; i < len; i++)
+            ParallelLoopResult parallelLoopResult = Parallel.For (0,len,i =>
             {
                 Rhino.DocObjects.ObjRef obj1 = objSel[i];
                 Brep brep1 = obj1.Brep();
-                if (brep1 == null) { continue; }
+                if (brep1 == null) { return; }
 
                 for (int j = i + 1; j < len; j++)
                 {
@@ -43,7 +46,7 @@ namespace AutoLineWeight_V6
 
                     Point3d[] ptIntersect;
                     Curve[] crvIntersect;
-                    double tol = doc.ModelAbsoluteTolerance;
+                    
                     bool success = Intersection.BrepBrep(brep1, brep2, tol, out crvIntersect, out ptIntersect);
                     if (!success) { continue; }
                     foreach (Curve crv in crvIntersect)
@@ -54,7 +57,7 @@ namespace AutoLineWeight_V6
                         this.intersects.Add(crv);
                     }
                 }
-            }
+            });
             return Result.Success;
         }
 

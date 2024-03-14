@@ -11,6 +11,14 @@
   <ItemGroup>
     <EmbeddedResource Include="EmbeddedResources\**\*" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Tester.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Tester.cs" />
+  </ItemGroup>
   
   <ItemGroup>
     <PackageReference Include="RhinoCommon" Version="6.35.21222.17001" IncludeAssets="compile;build" />

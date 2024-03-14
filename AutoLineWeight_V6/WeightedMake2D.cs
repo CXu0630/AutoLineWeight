@@ -41,6 +41,8 @@ namespace AutoLineWeight_V6
         /// adjacent faces.
         /// </summary>
 
+        // TODO: UPDATE TO BE ARGUMENTS TO FUNCTIONS AND NOT PROPERTIES?
+        // would that even be a good idea?
         // initize make2D properties
         ObjRef[] objRefs;
         RhinoViewport currentViewport;
@@ -54,10 +56,11 @@ namespace AutoLineWeight_V6
         Curve[] intersectionSegments = { };
 
         // initialize user options
+        bool colorBySource = true;
+        bool includeIntersect = true;
         bool includeClipping = false;
         bool includeHidden = false;
-        bool includeSilhouette = true;
-        bool includeIntersect = true;
+        bool includeSilhouette = false;
 
         // initialize layer management
         LayerManager LM;
@@ -87,12 +90,15 @@ namespace AutoLineWeight_V6
 
             // aquires user selection
             WMSelector selectObjs = new WMSelector();
+            selectObjs.SetDefaultValues(includeClipping, includeHidden, 
+                includeSilhouette, includeIntersect, colorBySource);
             this.objRefs = selectObjs.GetSelection();
             // aquires user options
-            this.includeClipping = selectObjs.GetIncludeClipping();
-            this.includeHidden = selectObjs.GetIncludeHidden();
-            this.includeSilhouette = selectObjs.GetIndluceSceneSilhouette();
-            this.includeIntersect = selectObjs.GetIndluceIntersect();
+            this.colorBySource = selectObjs.colorBySource;
+            this.includeIntersect = selectObjs.includeIntersect;
+            this.includeClipping = selectObjs.includeClipping;
+            this.includeHidden = selectObjs.includeHidden;
+            this.includeSilhouette = selectObjs.includeSceneSilhouette;
             // resolves conflict between silhouette and clipping
             if (this.includeSilhouette) { this.includeClipping = false; }
 
@@ -160,6 +166,12 @@ namespace AutoLineWeight_V6
             }
 
 
+            // TODO: PASS AS ARGUMENTS TO FUNCTIONS INSTEAD OF CLEARING AT END
+            this.objRefs = new ObjRef[] {};
+            this.intersects = new Curve[] {};
+            this.intersectionBB = new BoundingBox();
+            this.intersectionSegments = new Curve[] {};
+
             RhinoApp.WriteLine("WeightedMake2D was Successful!");
             watch0.Stop();
             long elapsedMs = watch0.ElapsedMilliseconds;
@@ -204,16 +216,19 @@ namespace AutoLineWeight_V6
             if (crv == null) return;
 
             var attr = new ObjectAttributes();
-            attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
-            attr.ColorSource = ObjectColorSource.ColorFromObject;
 
             HiddenLineDrawingObject source = make2DCurve.ParentCurve.SourceObject;
             RhinoObject sourceObj = doc.Objects.Find((Guid)source.Tag);
 
-            Color objColor = sourceObj.Attributes.DrawColor(doc);
-            Color dispColor = sourceObj.Attributes.ComputedPlotColor(doc);
-            attr.ObjectColor = objColor;
-            attr.PlotColor = dispColor;
+            if (this.colorBySource)
+            {
+                attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
+                attr.ColorSource = ObjectColorSource.ColorFromObject;
+                Color objColor = sourceObj.Attributes.DrawColor(doc);
+                Color dispColor = sourceObj.Attributes.ComputedPlotColor(doc);
+                attr.ObjectColor = objColor;
+                attr.PlotColor = dispColor;
+            }
 
             // Processes visible curves
             if (make2DCurve.SegmentVisibility == HiddenLineDrawingSegment.Visibility.Visible)

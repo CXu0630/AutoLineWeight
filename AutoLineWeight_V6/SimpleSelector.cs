@@ -157,7 +157,7 @@ namespace AutoLineWeight_V6
         /// Run selector code and obtain results.
         /// </summary>
         /// <returns> an array of ObjRefs containing selection results. </returns>
-        public Rhino.DocObjects.ObjRef[] GetSelection()
+        public ObjRef[] GetSelection()
         {
             this.RunCommand(RhinoDoc.ActiveDoc, RunMode.Interactive);
             return this.selection;
