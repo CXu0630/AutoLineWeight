@@ -105,6 +105,13 @@ namespace AutoLineWeight_V6
             // error aquireing user selection
             if (objRefs == null) { return Result.Cancel; }
 
+            foreach (ObjRef objRef in objRefs)
+            {
+                RhinoApp.WriteLine(objRef.Object().ObjectType.ToString());
+                RhinoObject id = objRef.InstanceDefinitionPart();
+                if (id == null) { continue; }
+                id.DuplicateGeometry();
+            }
 
             // start stopwatch for entire process
             Stopwatch watch0 = Stopwatch.StartNew();

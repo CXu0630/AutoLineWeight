@@ -93,7 +93,23 @@ namespace AutoLineWeight_V6
             foreach (ObjRef objRef in this.toMake2D)
             {
                 RhinoObject obj = objRef?.Object();
-                if (obj != null) { make2DParams.AddGeometry(obj.Geometry, Transform.Identity, obj.Id); }
+                if (obj.ObjectType == ObjectType.InstanceReference)
+                {
+                    InstanceObject iref = obj as InstanceObject;
+                    InstanceDefinition idef = iref.InstanceDefinition;
+                    if (idef != null)
+                    {
+                        RhinoObject[] defObjs = idef.GetObjects();
+                        foreach (RhinoObject defObj in defObjs)
+                        {
+                            make2DParams.AddGeometry(defObj.Geometry, Transform.Identity, defObj.Id);
+                        }
+                    }
+                }
+                else
+                {
+                    if (obj != null) { make2DParams.AddGeometry(obj.Geometry, Transform.Identity, obj.Id); }
+                }
             }
 
             foreach (Curve crv in this.intersects)

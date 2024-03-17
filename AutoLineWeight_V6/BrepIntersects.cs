@@ -8,7 +8,7 @@ using System.Collections.Concurrent;
 
 namespace AutoLineWeight_V6
 {
-    public class BrepIntersects : Command
+    public class BrepIntersects
     {
         Rhino.DocObjects.ObjRef[] objSel;
         ConcurrentBag<Curve> intersects = new ConcurrentBag<Curve>();
@@ -21,9 +21,7 @@ namespace AutoLineWeight_V6
         ///<summary>The only instance of the MyCommand command.</summary>
         public static BrepIntersects Instance { get; private set; }
 
-        public override string EnglishName => "CalculateBrepIntersects";
-
-        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        protected Result RunCommand(RhinoDoc doc, RunMode mode)
         {
             double tol = doc.ModelAbsoluteTolerance;
             int len = objSel.Length;
