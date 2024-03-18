@@ -15,7 +15,6 @@ namespace AutoLineWeight_V6
     {
         public List<Brep> breps = new List<Brep>();
         public List<Mesh> meshes = new List<Mesh>();
-        public List<>
 
         public GeometryContainer(ObjRef[] objRefs) 
         { 
