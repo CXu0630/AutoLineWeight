@@ -23,6 +23,7 @@ using Rhino.Display;
 using Rhino.DocObjects;
 using Rhino.Geometry;
 using System;
+using System.Collections.Generic;
 
 namespace AutoLineWeight_V6
 {
@@ -90,25 +91,34 @@ namespace AutoLineWeight_V6
                 return Result.Failure;
             }
 
+            int count = 0;
+            List<string> blocksProcessed = new List<string>();
+
             foreach (ObjRef objRef in this.toMake2D)
             {
+                
                 RhinoObject obj = objRef?.Object();
                 if (obj.ObjectType == ObjectType.InstanceReference)
                 {
                     InstanceObject iref = obj as InstanceObject;
+                    Guid id = iref.Id;
+                    if (blocksProcessed.Contains(id.ToString())) { continue; }
+                    blocksProcessed.Add(id.ToString());
+                    Transform xform = iref.InstanceXform;
                     InstanceDefinition idef = iref.InstanceDefinition;
-                    if (idef != null)
+                    if (iref != null && id != null)
                     {
                         RhinoObject[] defObjs = idef.GetObjects();
                         foreach (RhinoObject defObj in defObjs)
                         {
-                            make2DParams.AddGeometry(defObj.Geometry, Transform.Identity, defObj.Id);
+                            if (make2DParams.AddGeometry(defObj.Geometry, xform, defObj.Id)) count++;
+                            RhinoApp.WriteLine(defObj.Id.ToString());
                         }
                     }
                 }
                 else
                 {
-                    if (obj != null) { make2DParams.AddGeometry(obj.Geometry, Transform.Identity, obj.Id); }
+                    if (obj != null) { if (make2DParams.AddGeometry(obj.Geometry, Transform.Identity, obj.Id)) count++; }
                 }
             }
 
@@ -116,8 +126,10 @@ namespace AutoLineWeight_V6
             {
                 Guid parentGuid;
                 crv.UserDictionary.TryGetGuid("parentObj1", out parentGuid);
-                if (crv != null) { make2DParams.AddGeometry(crv, Transform.Identity, parentGuid); }
+                if (crv != null) { if (make2DParams.AddGeometry(crv, Transform.Identity, parentGuid)) count++; }
             }
+
+            RhinoApp.WriteLine(count.ToString() + " number of objects processing for make2D;");
 
             if (!this.includeHidden) { make2DParams.IncludeHiddenCurves = false; }
 

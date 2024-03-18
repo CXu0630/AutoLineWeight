@@ -105,13 +105,6 @@ namespace AutoLineWeight_V6
             // error aquireing user selection
             if (objRefs == null) { return Result.Cancel; }
 
-            foreach (ObjRef objRef in objRefs)
-            {
-                RhinoApp.WriteLine(objRef.Object().ObjectType.ToString());
-                RhinoObject id = objRef.InstanceDefinitionPart();
-                if (id == null) { continue; }
-                id.DuplicateGeometry();
-            }
 
             // start stopwatch for entire process
             Stopwatch watch0 = Stopwatch.StartNew();
@@ -425,6 +418,7 @@ namespace AutoLineWeight_V6
             HiddenLineDrawing intersectionMake2D = createIntersectionMake2D.GetMake2D();
 
             if (intersectionMake2D == null) { return; }
+            //TODO: error handling
 
             List<Curve> intersectionSegmentLst = new List<Curve>();
             foreach (var make2DCurve in intersectionMake2D.Segments)
