@@ -51,7 +51,7 @@ namespace AutoLineWeight_V6
 
                 // only calculate intersections if bounding boxes coincide
                 BoundingBox bb2 = crv.GetBoundingBox(false);
-                if (!BoundingBoxOperations.BoundingBoxCoincides(bb1, bb2)) { continue; }
+                if (!BoundingBoxOperations.BoundingBoxIntersects(bb1, bb2)) { continue; }
 
                 // calculate curve curve intersection
                 double tol = doc.ModelAbsoluteTolerance;

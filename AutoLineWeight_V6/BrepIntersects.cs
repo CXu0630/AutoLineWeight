@@ -40,7 +40,7 @@ namespace AutoLineWeight_V6
                     BoundingBox bb1 = obj1.Object().Geometry.GetBoundingBox(false);
                     BoundingBox bb2 = obj2.Object().Geometry.GetBoundingBox(false);
 
-                    if (!BoundingBoxOperations.BoundingBoxCoincides(bb1, bb2)) { continue; }
+                    if (!BoundingBoxOperations.BoundingBoxIntersects(bb1, bb2)) { continue; }
 
                     Point3d[] ptIntersect;
                     Curve[] crvIntersect;

@@ -4,15 +4,13 @@ namespace AutoLineWeight_V6
 {
     public class BoundingBoxOperations
     {
-        public BoundingBoxOperations()
-        {
-            Instance = this;
-        }
-
-        ///<summary>The only instance of the MyCommand command.</summary>
-        public static BoundingBoxOperations Instance { get; private set; }
-
-        public static bool BoundingBoxCoincides(BoundingBox bb1, BoundingBox bb2)
+        /// <summary>
+        /// Static method that returns whether two bounding boxes have intersections.
+        /// </summary>
+        /// <param name="bb1"></param>
+        /// <param name="bb2"></param>
+        /// <returns></returns>
+        public static bool BoundingBoxIntersects(BoundingBox bb1, BoundingBox bb2)
         {
             return bb1.Min.X <= bb2.Max.X &&
                 bb1.Max.X >= bb2.Min.X &&
@@ -22,11 +20,37 @@ namespace AutoLineWeight_V6
                 bb1.Max.Z >= bb2.Min.Z;
         }
 
-        public static Point3d PointLeftBot(BoundingBox bb)
+        /// <summary>
+        /// Static method that returns whether the bounding boxes of two GeometryBases
+        /// have intersections.
+        /// </summary>
+        /// <param name="gb1"></param>
+        /// <param name="gb2"></param>
+        /// <returns></returns>
+        public static bool BoundingBoxIntersects(GeometryBase gb1, GeometryBase gb2)
+        {
+            BoundingBox bb1 = gb1.GetBoundingBox(false);
+            BoundingBox bb2 = gb2.GetBoundingBox(false);
+
+            return BoundingBoxIntersects(bb1, bb2);
+        }
+
+        /// <summary>
+        /// Returns the point of the bounding box where x, y, and z values are minimum.
+        /// </summary>
+        /// <param name="bb"></param>
+        /// <returns></returns>
+        public static Point3d PointMin(BoundingBox bb)
         {
             return new Point3d(bb.Min.X, bb.Min.Y, bb.Min.Z);
         }
 
+        /// <summary>
+        /// Returns a vector representing the transformation from the center of the
+        /// bounding box to the origin of the model.
+        /// </summary>
+        /// <param name="bb"></param>
+        /// <returns></returns>
         public static Vector3d VectorCenterOrigin(BoundingBox bb)
         {
             Point3d center = bb.Center;
@@ -35,9 +59,15 @@ namespace AutoLineWeight_V6
             return centerToO;
         }
 
-        public static Vector3d VectorLeftBottomOrigin(BoundingBox bb)
+        /// <summary>
+        /// Returns a vector representing the transformation form the point where x, y, z
+        /// values are minimum for the bounding box to the origin of the model.
+        /// </summary>
+        /// <param name="bb"></param>
+        /// <returns></returns>
+        public static Vector3d VectorPointMinOrigin(BoundingBox bb)
         {
-            Vector3d vec = new Vector3d(PointLeftBot(bb));
+            Vector3d vec = new Vector3d(PointMin(bb));
             return -vec;
         }
     }

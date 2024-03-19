@@ -55,21 +55,23 @@ namespace AutoLineWeight_V6
         BoundingBox intersectionBB;
         Curve[] intersectionSegments = { };
 
-        // initialize user options
-        bool colorBySource = true;
-        bool includeIntersect = true;
-        bool includeClipping = false;
-        bool includeHidden = false;
-        bool includeSilhouette = false;
+        // initialize user options:
+        // color by source, include intersect, include clipping, include hidden,
+        // include silhouette
+        bool colorBySrc = true;
+        bool addIntersect = true;
+        bool addClip = false;
+        bool addHid = false;
+        bool addSil = false;
 
         // initialize layer management
         LayerManager LM;
-        int clipIdx;
-        int silhouetteIdx;
-        int hiddenIdx;
-        int outlineIdx;
-        int convexIdx;
-        int concaveIdx;
+        int clipLyrIdx;
+        int silLyrIdx;
+        int hidLyrIdx;
+        int outLyrIdx;
+        int convexLyrIdx;
+        int concaveLyrIdx;
 
 
         public WeightedMake2D()
@@ -90,17 +92,17 @@ namespace AutoLineWeight_V6
 
             // aquires user selection
             WMSelector selectObjs = new WMSelector();
-            selectObjs.SetDefaultValues(includeClipping, includeHidden, 
-                includeSilhouette, includeIntersect, colorBySource);
+            selectObjs.SetDefaultValues(addClip, addHid, 
+                addSil, addIntersect, colorBySrc);
             this.objRefs = selectObjs.GetSelection();
             // aquires user options
-            this.colorBySource = selectObjs.colorBySource;
-            this.includeIntersect = selectObjs.includeIntersect;
-            this.includeClipping = selectObjs.includeClipping;
-            this.includeHidden = selectObjs.includeHidden;
-            this.includeSilhouette = selectObjs.includeSceneSilhouette;
+            this.colorBySrc = selectObjs.colorBySource;
+            this.addIntersect = selectObjs.includeIntersect;
+            this.addClip = selectObjs.includeClipping;
+            this.addHid = selectObjs.includeHidden;
+            this.addSil = selectObjs.includeSceneSilhouette;
             // resolves conflict between silhouette and clipping
-            if (this.includeSilhouette) { this.includeClipping = false; }
+            if (this.addSil) { this.addClip = false; }
 
             // error aquireing user selection
             if (objRefs == null) { return Result.Cancel; }
@@ -110,7 +112,16 @@ namespace AutoLineWeight_V6
             Stopwatch watch0 = Stopwatch.StartNew();
 
 
-            if (this.includeIntersect)
+            // create geometry container and parse blocks
+            GeometryContainer gc = new GeometryContainer(objRefs);
+            RhinoApp.WriteLine(" ---------------- ");
+            RhinoApp.WriteLine(gc.GetCount().ToString() + " objects prior to exploding blocks");
+            GeometryContainer expGC = gc.ExplodeBlocks();
+            RhinoApp.WriteLine(expGC.GetCount().ToString() + " objects after exploding blocks");
+            RhinoApp.WriteLine(" ---------------- ");
+
+
+            if (this.addIntersect)
             {
                 // calculate the intersection between selected breps
                 Stopwatch watch1 = Stopwatch.StartNew();
@@ -127,7 +138,7 @@ namespace AutoLineWeight_V6
             // compute a make2D for selected geometry plus intersections
             Stopwatch watch2 = Stopwatch.StartNew();
             GenericMake2D createMake2D = new GenericMake2D(objRefs, intersects,
-                currentViewport, includeClipping, includeHidden);
+                currentViewport, addClip, addHid);
             HiddenLineDrawing make2D = createMake2D.GetMake2D();
             if (make2D == null) { return Result.Failure; }
             // recalculate flatten
@@ -156,7 +167,7 @@ namespace AutoLineWeight_V6
 
 
             // generate outlines if required
-            if (this.includeSilhouette)
+            if (this.addSil)
             {
                 Stopwatch watch5 = Stopwatch.StartNew();
                 MakeOutline(doc);
@@ -190,7 +201,7 @@ namespace AutoLineWeight_V6
         {
             this.flatten = Transform.PlanarProjection(Plane.WorldXY);
             BoundingBox bb = make2D.BoundingBox(true);
-            Vector3d moveVector = BoundingBoxOperations.VectorLeftBottomOrigin(bb);
+            Vector3d moveVector = BoundingBoxOperations.VectorPointMinOrigin(bb);
             moveVector.Z = 0;
             Transform move2D = Transform.Translation(moveVector);
             this.flatten = move2D * flatten;
@@ -209,7 +220,7 @@ namespace AutoLineWeight_V6
                 return;
 
             if (make2DCurve.SegmentVisibility == HiddenLineDrawingSegment.Visibility.Hidden
-                && this.includeHidden == false) return;
+                && this.addHid == false) return;
 
             var crv = make2DCurve.CurveGeometry.DuplicateCurve();
 
@@ -220,7 +231,7 @@ namespace AutoLineWeight_V6
             HiddenLineDrawingObject source = make2DCurve.ParentCurve.SourceObject;
             RhinoObject sourceObj = doc.Objects.Find((Guid)source.Tag);
 
-            if (this.colorBySource)
+            if (this.colorBySrc)
             {
                 attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
                 attr.ColorSource = ObjectColorSource.ColorFromObject;
@@ -252,9 +263,9 @@ namespace AutoLineWeight_V6
                 attr.SetUserString("Siltype", silType.ToString());
                 // sort segments into layers based on outline and concavity
 
-                if (silType == SilhouetteType.SectionCut && includeClipping)
+                if (silType == SilhouetteType.SectionCut && addClip)
                 {
-                    attr.LayerIndex = clipIdx;
+                    attr.LayerIndex = clipLyrIdx;
 
                 }
                 else if (silType == SilhouetteType.Boundary ||
@@ -262,25 +273,25 @@ namespace AutoLineWeight_V6
                     silType == SilhouetteType.Tangent ||
                     silType == SilhouetteType.TangentProjects)
                 {
-                    attr.LayerIndex = outlineIdx;
+                    attr.LayerIndex = outLyrIdx;
                     bool segmented = SegmentAndAddToDoc(doc, attr, crv);
                     if (segmented) { return; }
                 }
                 else if (crvMidConcavity == Concavity.Convex)
                 {
-                    attr.LayerIndex = convexIdx;
+                    attr.LayerIndex = convexLyrIdx;
                     bool segmented = SegmentAndAddToDoc(doc, attr, crv);
                     if (segmented) { return; }
                 }
                 else
                 {
-                    attr.LayerIndex = concaveIdx;
+                    attr.LayerIndex = concaveLyrIdx;
                 }
             }
             // process hidden curves: add them to the hidden layer
             else if (make2DCurve.SegmentVisibility == HiddenLineDrawingSegment.Visibility.Hidden)
             {
-                attr.LayerIndex = hiddenIdx;
+                attr.LayerIndex = hidLyrIdx;
             }
             else { return; }
 
@@ -298,7 +309,7 @@ namespace AutoLineWeight_V6
         {
             //if (intersectionSegments == null) { return false; }
             if (intersectionSegments.Length == 0) { return false; }
-            if (BoundingBoxOperations.BoundingBoxCoincides(crv.GetBoundingBox(false),
+            if (BoundingBoxOperations.BoundingBoxIntersects(crv.GetBoundingBox(false),
                 intersectionBB) == false) { return false; }
             CurveBooleanDifference crvBD =
                 new CurveBooleanDifference(crv, intersectionSegments);
@@ -312,7 +323,7 @@ namespace AutoLineWeight_V6
             }
             foreach (Curve overlappingCrv in overlap)
             {
-                attribs.LayerIndex = concaveIdx;
+                attribs.LayerIndex = concaveLyrIdx;
                 AddtoDoc(doc, overlappingCrv, attribs);
             }
 
@@ -340,8 +351,8 @@ namespace AutoLineWeight_V6
         {
             string[] level2Lyrs = { null, "WT_Outline", "WT_Convex", "WT_Concave" };
             // add clipping/silhouette layers if necessary
-            if (this.includeSilhouette) { level2Lyrs[0] = "WT_Silhouette"; }
-            else if (this.includeClipping) { level2Lyrs[0] = "WT_Cut"; }
+            if (this.addSil) { level2Lyrs[0] = "WT_Silhouette"; }
+            else if (this.addClip) { level2Lyrs[0] = "WT_Cut"; }
 
             LM = new LayerManager(doc);
 
@@ -350,7 +361,7 @@ namespace AutoLineWeight_V6
 
             LM.GradientWeightAssign(level2Lyrs, 0.15, 1.5);
 
-            if (this.includeHidden)
+            if (this.addHid)
             {
                 LM.Add("WT_Hidden", "WT_Make2D");
                 Layer hiddenLyr = LM.GetLayer("WT_Hidden");
@@ -359,12 +370,12 @@ namespace AutoLineWeight_V6
                 hiddenLyr.PlotWeight = 0.1;
             }
 
-            clipIdx = LM.GetIdx("WT_Cut");
-            silhouetteIdx = LM.GetIdx("WT_Silhouette");
-            hiddenIdx = LM.GetIdx("WT_Hidden");
-            outlineIdx = LM.GetIdx("WT_Outline");
-            convexIdx = LM.GetIdx("WT_Convex");
-            concaveIdx = LM.GetIdx("WT_Concave");
+            clipLyrIdx = LM.GetIdx("WT_Cut");
+            silLyrIdx = LM.GetIdx("WT_Silhouette");
+            hidLyrIdx = LM.GetIdx("WT_Hidden");
+            outLyrIdx = LM.GetIdx("WT_Outline");
+            convexLyrIdx = LM.GetIdx("WT_Convex");
+            concaveLyrIdx = LM.GetIdx("WT_Concave");
         }
 
 
@@ -377,7 +388,7 @@ namespace AutoLineWeight_V6
             MeshOutline outliner = new MeshOutline(objRefs, currentViewport);
             PolylineCurve[] outlines = outliner.GetOutlines();
             GenericMake2D outline2DMaker = new GenericMake2D(outlines, currentViewport,
-                includeClipping, includeHidden);
+                addClip, addHid);
             HiddenLineDrawing outline2D = outline2DMaker.GetMake2D();
 
             if (outline2D == null)
@@ -397,7 +408,7 @@ namespace AutoLineWeight_V6
                 var attr = new ObjectAttributes();
                 attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
                 attr.ColorSource = ObjectColorSource.ColorFromObject;
-                attr.LayerIndex = silhouetteIdx;
+                attr.LayerIndex = silLyrIdx;
                 AddtoDoc(doc, crv, attr);
             }
         }
@@ -414,7 +425,7 @@ namespace AutoLineWeight_V6
 
             // generate this drawing only if there are intersects
             GenericMake2D createIntersectionMake2D = new GenericMake2D(intersects,
-                currentViewport, includeClipping, includeHidden);
+                currentViewport, addClip, addHid);
             HiddenLineDrawing intersectionMake2D = createIntersectionMake2D.GetMake2D();
 
             if (intersectionMake2D == null) { return; }
