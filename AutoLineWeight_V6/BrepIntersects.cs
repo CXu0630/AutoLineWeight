@@ -18,6 +18,7 @@ namespace AutoLineWeight_V6
             this.objSel = sourceObjSel;
         }
 
+
         ///<summary>The only instance of the MyCommand command.</summary>
         public static BrepIntersects Instance { get; private set; }
 
