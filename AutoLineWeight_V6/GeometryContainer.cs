@@ -1,11 +1,16 @@
-﻿using System;
+﻿/*
+-----------------------------------------------------------------------------------------
+created 03/16/2024
+
+Chloe Xu
+guangyu.xu0630@gmail.com
+Last edited:03/20/2024
+-----------------------------------------------------------------------------------------
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Rhino;
-using Rhino.Commands;
-using Rhino.Display;
 using Rhino.DocObjects;
 using Rhino.Geometry;
 
@@ -25,13 +30,15 @@ namespace AutoLineWeight_V6
         public List<string> blockIds = new List<string>();
 
         public bool includeRenderMesh = false;
-
         public List<Mesh> renderMeshes = new List<Mesh>();
 
         /// <summary>
         /// Creates a new instance of an empity GeometryContainer
         /// </summary>
-        public GeometryContainer() { }
+        public GeometryContainer(bool incRenderMesh = false) 
+        { 
+            this.includeRenderMesh = incRenderMesh; 
+        }
 
         /// <summary>
         /// Creates a new instance of GeometryContainer. Guids of original geometry are
@@ -79,20 +86,7 @@ namespace AutoLineWeight_V6
             }
 
             // process render meshes
-            if (includeRenderMesh && meshes.Count > 0)
-            {
-                includeRenderMesh = true;
-                RhinoObject[] brepROs = new RhinoObject[breps.Count];
-                for(int i = 0; i < breps.Count; i++)
-                {
-                    Guid guid;
-                    breps[i].UserDictionary.TryGetGuid("GUID", out guid);
-                    brepROs[i] = new ObjRef(guid).Object();
-                }
-
-                ObjRef[] rMeshRefs = RhinoObject.GetRenderMeshes(brepROs, true, true);
-                renderMeshes = Array.ConvertAll(rMeshRefs, rMeshRef => rMeshRef.Mesh()).ToList();
-            }
+            if (incRenderMesh) GetRenderMeshes();
         }
 
         /// <summary>
@@ -105,7 +99,8 @@ namespace AutoLineWeight_V6
         /// <param name="blocks"></param>
         /// <param name="blockIds"></param>
         public GeometryContainer(List<Brep> breps, List<Mesh> meshes, List<Curve> curves, 
-            List<InstanceObject> blocks, List<string> blockIds)
+            List<InstanceObject> blocks, List<string> blockIds, List<Mesh> renderMeshes, 
+            bool includeRenderMesh = false)
         {
             // if the input for any of the fields is null, then use an empity list
             this.breps = breps ?? this.breps;
@@ -113,6 +108,28 @@ namespace AutoLineWeight_V6
             this.curves = curves ?? this.curves;
             this.blocks = blocks ?? this.blocks;
             this.blockIds = blockIds ?? this.blockIds;
+
+            this.renderMeshes = renderMeshes ?? this.renderMeshes;
+            this.includeRenderMesh = includeRenderMesh;
+        }
+
+        /// <summary>
+        /// Get render meshes of all the breps within the container.
+        /// </summary>
+        public void GetRenderMeshes()
+        {
+            this.includeRenderMesh = true;
+
+            RhinoObject[] brepROs = new RhinoObject[breps.Count];
+            for (int i = 0; i < breps.Count; i++)
+            {
+                Guid guid;
+                breps[i].UserDictionary.TryGetGuid("GUID", out guid);
+                brepROs[i] = new ObjRef(guid).Object();
+            }
+
+            ObjRef[] rMeshRefs = RhinoObject.GetRenderMeshes(brepROs, true, true);
+            renderMeshes = Array.ConvertAll(rMeshRefs, rMeshRef => rMeshRef.Mesh()).ToList();
         }
 
         /// <summary>
@@ -139,11 +156,13 @@ namespace AutoLineWeight_V6
                     ObjRef[] objRefs = Array.ConvertAll(objIds, id => new ObjRef(id));
                     GeometryContainer cBlock = new GeometryContainer(objRefs, includeRenderMesh);
                     
+                    // recursive case: there are nested blocks
                     if(cBlock.blocks.Count > 0)
                     {
                         cBlock = cBlock.ExplodeBlocks();
                     }
 
+                    // blocks are transformed after they are returned
                     foreach(Brep brep in cBlock.breps) { brep.Transform(xform); }
                     foreach(Curve curve in cBlock.curves) { curve.Transform(xform); }
                     foreach(Mesh mesh in cBlock.meshes) { mesh.Transform(xform); }
@@ -168,14 +187,17 @@ namespace AutoLineWeight_V6
             List<Mesh> newMeshes = new List<Mesh>(meshes);
             List<InstanceObject> newBlocks = new List<InstanceObject>(blocks);
             List<string> newBlockIds = new List<string>(blockIds);
+            List<Mesh> newRMeshes = new List<Mesh>(renderMeshes);
 
             newBreps.AddRange(container.breps);
             newCrvs.AddRange(container.curves);
             newMeshes.AddRange(container.meshes);
             newBlocks.AddRange(container.blocks);
             newBlockIds.AddRange(container.blockIds);
+            newRMeshes.AddRange(container.renderMeshes);
 
-            return new GeometryContainer(newBreps, newMeshes, newCrvs, newBlocks, newBlockIds);
+            return new GeometryContainer(newBreps, newMeshes, newCrvs, newBlocks, 
+                newBlockIds, newRMeshes, includeRenderMesh || container.includeRenderMesh);
         }
 
         /// <summary>
@@ -185,7 +207,22 @@ namespace AutoLineWeight_V6
         /// <returns> total number of geometries </returns>
         public int GetCount()
         {
-            return breps.Count + curves.Count + meshes.Count + blocks.Count;
+            return GetGeoCount() + blocks.Count;
+        }
+
+        public int GetGeoCount()
+        {
+            return breps.Count + curves.Count + meshes.Count;
+        }
+
+        public GeometryBase[] GetAllGeometries()
+        {
+            GeometryBase[] allGeo = new GeometryBase[GetCount() - blocks.Count];
+            int i = 0;
+            foreach (Brep brep in breps) { allGeo[i] = brep; i++; }
+            foreach (Curve crv in curves) { allGeo[i] = crv; i++; }
+            foreach (Mesh mesh in meshes) { allGeo[i] = mesh; i++; }
+            return allGeo;
         }
     }
 }

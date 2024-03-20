@@ -1,24 +1,90 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿/*
+-----------------------------------------------------------------------------------------
+created 03/18/2024
+
+Chloe Xu
+guangyu.xu0630@gmail.com
+Last edited:03/20/2024
+-----------------------------------------------------------------------------------------
+*/
+
+using System;
 using System.Threading.Tasks;
 using Rhino;
 using Rhino.Geometry;
 using Rhino.Geometry.Intersect;
 using System.Collections.Concurrent;
-using Rhino.DocObjects;
 
 namespace AutoLineWeight_V6
 {
     internal class GeometryIntersects
     {
-        public static Curve[] GetIntersects(GeometryContainer gc)
+        /// <summary>
+        /// Calculates all geometry intersections within a GeometryContainer.
+        /// </summary>
+        /// <param name="gc"></param>
+        /// <param name="meshBrep"> Whether or not to calculate intersections between
+        /// meshes and breps stored within the GeometryContainer. </param>
+        /// <returns></returns>
+        public static Curve[] GetIntersects(GeometryContainer gc, bool meshBrep)
         {
             ConcurrentBag<Curve> intersects = new ConcurrentBag<Curve>();
+
+            // get brep brep intersections
+            int lenBrep = gc.breps.Count;
+
+            ParallelLoopResult parallelLoopResult = Parallel.For (0, lenBrep, i =>
+            {
+                if (gc.breps[i] == null) { return; }
+                for(int j = i + 1; j < lenBrep; j++)
+                {
+                    if (gc.breps[j] == null) { continue; }
+                    Curve[] pairIntersects = BrepBrep(gc.breps[i], gc.breps[j]);
+                    foreach (Curve curve in pairIntersects) { intersects.Add(curve); }
+                }
+            });
+
+            // get mesh mesh intersections
+            int lenMesh = gc.meshes.Count;
+            // no need to calculate mesh x brep if there are no meshes
+            if(lenMesh == 0) { return intersects.ToArray(); }
+
+            ParallelLoopResult parallelLoopResult2 = Parallel.For(0, lenMesh, i =>
+            {
+                if (gc.meshes[i] == null) { return; }
+                for (int j = i + 1; j < lenMesh; j++)
+                {
+                    if (gc.meshes[j] == null) { continue; }
+                    Curve[] pairIntersects = MeshMesh(gc.meshes[i], gc.meshes[j]);
+                    foreach (Curve curve in pairIntersects) { intersects.Add(curve); }
+                }
+            });
+
+            if (!meshBrep || gc.includeRenderMesh == false) { return intersects.ToArray(); }
+            int lenRMesh = gc.renderMeshes.Count;
+            if (lenRMesh == 0) { return intersects.ToArray(); }
+
+            ParallelLoopResult parallelLoopResult3 = Parallel.For(0, lenRMesh, i =>
+            {
+                if (gc.renderMeshes[i] == null) { return; }
+                for (int j = 0; j < lenMesh; j++)
+                {
+                    if (gc.meshes[j] == null) { continue; }
+                    Curve[] pairIntersects = MeshMesh(gc.renderMeshes[i], gc.meshes[j]);
+                    foreach (Curve curve in pairIntersects) { intersects.Add(curve); }
+                }
+            });
+
             return intersects.ToArray();
         }
 
+        /// <summary>
+        /// Calculates intersections between two breps.
+        /// </summary>
+        /// <param name="brep1"></param>
+        /// <param name="brep2"></param>
+        /// <param name="tol"></param>
+        /// <returns></returns>
         public static Curve[] BrepBrep(Brep brep1, Brep brep2, double tol = 0)
         {
             Curve[] crvIntersect = { };
@@ -37,6 +103,13 @@ namespace AutoLineWeight_V6
             return crvIntersect;
         }
 
+        /// <summary>
+        /// Calculates intersection curves between two meshes.
+        /// </summary>
+        /// <param name="mesh1"></param>
+        /// <param name="mesh2"></param>
+        /// <param name="tol"></param>
+        /// <returns></returns>
         public static Curve[] MeshMesh(Mesh mesh1, Mesh mesh2, double tol = 0)
         {
             Curve[] crvIntersect = { };

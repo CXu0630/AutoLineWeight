@@ -1,10 +1,24 @@
-﻿using Rhino;
+﻿/*
+-----------------------------------------------------------------------------------------
+created 01/03/2024
+
+Chloe Xu
+guangyu.xu0630@gmail.com
+Last edited:01/03/2024
+-----------------------------------------------------------------------------------------
+*/
+
+
+using Rhino;
 using Rhino.DocObjects;
 using System;
 using System.Collections.Generic;
 
 namespace AutoLineWeight_V6
 {
+    /// <summary>
+    /// Class for storing created layer references and assigning line weights to layers.
+    /// </summary>
     public class LayerManager
     {
         RhinoDoc doc;
@@ -19,11 +33,7 @@ namespace AutoLineWeight_V6
         public LayerManager(RhinoDoc doc)
         {
             this.doc = doc;
-            Instance = this;
         }
-
-        ///<summary>The only instance of the MyCommand command.</summary>
-        public static LayerManager Instance { get; private set; }
 
         public void Add(string lyrName, string parent)
         {

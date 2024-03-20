@@ -1,11 +1,17 @@
-﻿using Rhino;
+﻿/*
+-----------------------------------------------------------------------------------------
+created 02/05/2024
+
+Chloe Xu
+guangyu.xu0630@gmail.com
+Last edited:03/20/2024
+-----------------------------------------------------------------------------------------
+*/
+
+
+using Rhino;
 using Rhino.DocObjects;
 using Rhino.Geometry;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AutoLineWeight_V6
 {

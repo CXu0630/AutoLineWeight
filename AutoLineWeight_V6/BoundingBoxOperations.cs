@@ -1,7 +1,20 @@
-﻿using Rhino.Geometry;
+﻿/*
+-----------------------------------------------------------------------------------------
+created 01/03/2024
+
+Chloe Xu
+guangyu.xu0630@gmail.com
+Last edited:03/20/2024
+-----------------------------------------------------------------------------------------
+*/
+
+using Rhino.Geometry;
 
 namespace AutoLineWeight_V6
 {
+    /// <summary>
+    /// Helper class for static bounding box operations
+    /// </summary>
     public class BoundingBoxOperations
     {
         /// <summary>

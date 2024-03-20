@@ -9,14 +9,14 @@ present and the line is on a convex corner, it is defined as "WT_Convex". All ot
 visible lines are defined as "WT_Concave". Hidden lines are also processed. Results
 are baked onto layers according to their assigned weight.
 
+Sorry for the spaghetti :(
+
 -----------------------------------------------------------------------------------------
 created 11/28/2023
-Ennead Architects
 
 Chloe Xu
-chloe.xu@ennead.com
-edited:01/04/2024
-
+guangyu.xu0630@gmail.com
+Last edited:03/20/2024
 -----------------------------------------------------------------------------------------
 */
 
@@ -29,10 +29,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Runtime.InteropServices;
 
 namespace AutoLineWeight_V6
 {
+    /// <summary>
+    /// This command creates a weighted 2D representation of user-selected 3D geometry.
+    /// </summary>
     public class WeightedMake2D : Command
     {
         /// <summary>
@@ -41,25 +43,17 @@ namespace AutoLineWeight_V6
         /// adjacent faces.
         /// </summary>
 
-        // TODO: UPDATE TO BE ARGUMENTS TO FUNCTIONS AND NOT PROPERTIES?
-        // would that even be a good idea?
-        // initize make2D properties
-        ObjRef[] objRefs;
         RhinoViewport currentViewport;
 
         // initialize transformation (move and flatten)
         Transform flatten;
-
-        // initialize intersection properties
-        Curve[] intersects = { };
-        BoundingBox intersectionBB;
-        Curve[] intersectionSegments = { };
 
         // initialize user options:
         // color by source, include intersect, include clipping, include hidden,
         // include silhouette
         bool colorBySrc = true;
         bool addIntersect = true;
+        bool meshBrep = false;
         bool addClip = false;
         bool addHid = false;
         bool addSil = false;
@@ -91,18 +85,20 @@ namespace AutoLineWeight_V6
             currentViewport = RhinoDoc.ActiveDoc.Views.ActiveView.ActiveViewport;
 
             // aquires user selection
-            WMSelector selectObjs = new WMSelector();
+            ALWSelector selectObjs = new ALWSelector();
             selectObjs.SetDefaultValues(addClip, addHid, 
-                addSil, addIntersect, colorBySrc);
-            this.objRefs = selectObjs.GetSelection();
+                addSil, addIntersect, colorBySrc, meshBrep);
+            ObjRef[] objRefs = selectObjs.GetSelection();
             // aquires user options
             this.colorBySrc = selectObjs.colorBySource;
             this.addIntersect = selectObjs.includeIntersect;
             this.addClip = selectObjs.includeClipping;
             this.addHid = selectObjs.includeHidden;
             this.addSil = selectObjs.includeSceneSilhouette;
+            this.meshBrep = selectObjs.meshBrepIntersect;
             // resolves conflict between silhouette and clipping
             if (this.addSil) { this.addClip = false; }
+            if (!this.addIntersect) { this.meshBrep = false; }
 
             // error aquireing user selection
             if (objRefs == null) { return Result.Cancel; }
@@ -113,22 +109,27 @@ namespace AutoLineWeight_V6
 
 
             // create geometry container and parse blocks
-            GeometryContainer gc = new GeometryContainer(objRefs);
+
+            GeometryContainer gc = new GeometryContainer(objRefs, addSil || meshBrep);
             RhinoApp.WriteLine(" ---------------- ");
-            RhinoApp.WriteLine(gc.GetCount().ToString() + " objects prior to exploding blocks");
+            RhinoApp.WriteLine(gc.GetCount().ToString() 
+                + " objects prior to exploding blocks");
             GeometryContainer expGC = gc.ExplodeBlocks();
-            RhinoApp.WriteLine(expGC.GetCount().ToString() + " objects after exploding blocks");
+            RhinoApp.WriteLine(expGC.GetCount().ToString() 
+                + " objects after exploding blocks");
             RhinoApp.WriteLine(" ---------------- ");
 
+
+            Curve[] intersects3D = { };
+            Curve[] intersects2D = { };
+            BoundingBox intersectsBB = new BoundingBox();
 
             if (this.addIntersect)
             {
                 // calculate the intersection between selected breps
                 Stopwatch watch1 = Stopwatch.StartNew();
-                // calculate intersections between breps
-                BrepIntersects calcBrepInts = new BrepIntersects(objRefs);
-                intersects = calcBrepInts.GetIntersects();
-                MakeIntersects(doc);
+                intersects3D = GeometryIntersects.GetIntersects(expGC, meshBrep);
+                intersects2D = CurvesMake2D(doc, intersects3D, out intersectsBB);
                 watch1.Stop();
                 RhinoApp.WriteLine("Calculating geometry intersects {0} miliseconds.",
                     watch1.ElapsedMilliseconds.ToString());
@@ -137,12 +138,12 @@ namespace AutoLineWeight_V6
 
             // compute a make2D for selected geometry plus intersections
             Stopwatch watch2 = Stopwatch.StartNew();
-            GenericMake2D createMake2D = new GenericMake2D(objRefs, intersects,
+            ALWMake2D awlMake2D = new ALWMake2D(expGC, intersects3D,
                 currentViewport, addClip, addHid);
-            HiddenLineDrawing make2D = createMake2D.GetMake2D();
-            if (make2D == null) { return Result.Failure; }
+            HiddenLineDrawing hld = awlMake2D.GetMake2D(doc);
+            if (hld == null) { return Result.Failure; }
             // recalculate flatten
-            RecalcTransformation(make2D);
+            RecalcTransformation(hld);
             watch2.Stop();
             RhinoApp.WriteLine("Generating Make2D {0} miliseconds.",
                 watch2.ElapsedMilliseconds.ToString());
@@ -158,8 +159,8 @@ namespace AutoLineWeight_V6
 
             // sort make2D curves
             Stopwatch watch4 = Stopwatch.StartNew();
-            foreach (HiddenLineDrawingSegment make2DCurve in make2D.Segments)
-            { SortMake2DSegment(doc, make2DCurve); }
+            foreach (HiddenLineDrawingSegment make2DCurve in hld.Segments)
+            { SortMake2DSegment(doc, make2DCurve, intersects2D, intersectsBB); }
             doc.Views.Redraw();
             watch4.Stop();
             RhinoApp.WriteLine("Sorting Curves took {0} miliseconds.",
@@ -170,18 +171,11 @@ namespace AutoLineWeight_V6
             if (this.addSil)
             {
                 Stopwatch watch5 = Stopwatch.StartNew();
-                MakeOutline(doc);
+                MakeOutline(doc, expGC);
                 watch5.Stop();
                 RhinoApp.WriteLine("Generating Outline took {0} miliseconds.",
                     watch5.ElapsedMilliseconds.ToString());
             }
-
-
-            // TODO: PASS AS ARGUMENTS TO FUNCTIONS INSTEAD OF CLEARING AT END
-            this.objRefs = new ObjRef[] {};
-            this.intersects = new Curve[] {};
-            this.intersectionBB = new BoundingBox();
-            this.intersectionSegments = new Curve[] {};
 
             RhinoApp.WriteLine("WeightedMake2D was Successful!");
             watch0.Stop();
@@ -212,7 +206,8 @@ namespace AutoLineWeight_V6
         /// Method used to sort HiddenLineDrawing curves based on the formal relationships 
         /// between their source edges and their adjacent faces.
         /// </summary>
-        private void SortMake2DSegment(RhinoDoc doc, HiddenLineDrawingSegment make2DCurve)
+        private void SortMake2DSegment(RhinoDoc doc, HiddenLineDrawingSegment make2DCurve, 
+            Curve[] intersects, BoundingBox intersectsBB)
         {
             // Check for parent curve. Discard if not found.
             if (make2DCurve?.ParentCurve == null ||
@@ -229,9 +224,10 @@ namespace AutoLineWeight_V6
             var attr = new ObjectAttributes();
 
             HiddenLineDrawingObject source = make2DCurve.ParentCurve.SourceObject;
-            RhinoObject sourceObj = doc.Objects.Find((Guid)source.Tag);
+            ObjRef srcRef = new ObjRef((Guid)source.Tag);
+            RhinoObject sourceObj = srcRef.Object();
 
-            if (this.colorBySrc)
+            if (this.colorBySrc && sourceObj != null)
             {
                 attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
                 attr.ColorSource = ObjectColorSource.ColorFromObject;
@@ -274,13 +270,13 @@ namespace AutoLineWeight_V6
                     silType == SilhouetteType.TangentProjects)
                 {
                     attr.LayerIndex = outLyrIdx;
-                    bool segmented = SegmentAndAddToDoc(doc, attr, crv);
+                    bool segmented = SegmentAndAddToDoc(doc, attr, crv, intersects, intersectsBB);
                     if (segmented) { return; }
                 }
                 else if (crvMidConcavity == Concavity.Convex)
                 {
                     attr.LayerIndex = convexLyrIdx;
-                    bool segmented = SegmentAndAddToDoc(doc, attr, crv);
+                    bool segmented = SegmentAndAddToDoc(doc, attr, crv, intersects, intersectsBB);
                     if (segmented) { return; }
                 }
                 else
@@ -305,14 +301,15 @@ namespace AutoLineWeight_V6
         /// put under the concave layer, other sections are put under convex.
         /// </summary>
         /// <returns> whether or not SegmentAndAddToDoc was successful </returns>
-        private bool SegmentAndAddToDoc(RhinoDoc doc, ObjectAttributes attribs, Curve crv)
+        private bool SegmentAndAddToDoc(RhinoDoc doc, ObjectAttributes attribs, Curve crv, 
+            Curve[] intersects, BoundingBox intersectsBB)
         {
             //if (intersectionSegments == null) { return false; }
-            if (intersectionSegments.Length == 0) { return false; }
+            if (intersects.Length == 0) { return false; }
             if (BoundingBoxOperations.BoundingBoxIntersects(crv.GetBoundingBox(false),
-                intersectionBB) == false) { return false; }
+                intersectsBB) == false) { return false; }
             CurveBooleanDifference crvBD =
-                new CurveBooleanDifference(crv, intersectionSegments);
+                new CurveBooleanDifference(crv, intersects);
             crvBD.CalculateOverlap();
             Curve[] remaining = crvBD.GetResultCurves();
             Curve[] overlap = crvBD.GetOverlapCurves();
@@ -383,34 +380,15 @@ namespace AutoLineWeight_V6
         /// <summary>
         /// Helper method to generate the outline of selected geometry.
         /// </summary>
-        private void MakeOutline(RhinoDoc doc)
+        private void MakeOutline(RhinoDoc doc, GeometryContainer gc)
         {
-            MeshOutline outliner = new MeshOutline(objRefs, currentViewport);
-            PolylineCurve[] outlines = outliner.GetOutlines();
-            GenericMake2D outline2DMaker = new GenericMake2D(outlines, currentViewport,
-                addClip, addHid);
-            HiddenLineDrawing outline2D = outline2DMaker.GetMake2D();
+            PolylineCurve[] outlines3D = MeshOutline.GetOutline(gc, currentViewport);
+            Curve[] outlines2D = CurvesMake2D(doc, outlines3D, out _);
 
-            if (outline2D == null)
-            {
-                return;
-            }
+            var attr = new ObjectAttributes();
+            attr.LayerIndex = silLyrIdx;
 
-            foreach (var make2DCurve in outline2D.Segments)
-            {
-                // Check for parent curve. Discard if not found.
-                if (make2DCurve?.ParentCurve == null ||
-                    make2DCurve.ParentCurve.SilhouetteType == SilhouetteType.None)
-                    continue;
-
-                var crv = make2DCurve.CurveGeometry.DuplicateCurve();
-
-                var attr = new ObjectAttributes();
-                attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
-                attr.ColorSource = ObjectColorSource.ColorFromObject;
-                attr.LayerIndex = silLyrIdx;
-                AddtoDoc(doc, crv, attr);
-            }
+            foreach (Curve crv in outlines2D) AddtoDoc(doc, crv, attr);
         }
 
 
@@ -419,20 +397,22 @@ namespace AutoLineWeight_V6
         /// Helper method to process intersection curves and compute bounding box and 
         /// an array of unflattened make2D intersection curves.
         /// </summary>
-        private void MakeIntersects(RhinoDoc doc)
+        private Curve[] CurvesMake2D (RhinoDoc doc, Curve[] crvs3D, out BoundingBox bb)
         {
-            if (intersects.Length == 0) return;
+            List<Curve> crvs2D = new List<Curve>();
+            bb = new BoundingBox();
+
+            if (crvs3D.Length == 0) return crvs2D.ToArray();
 
             // generate this drawing only if there are intersects
-            GenericMake2D createIntersectionMake2D = new GenericMake2D(intersects,
+            ALWMake2D awlMake2D = new ALWMake2D(crvs3D,
                 currentViewport, addClip, addHid);
-            HiddenLineDrawing intersectionMake2D = createIntersectionMake2D.GetMake2D();
+            HiddenLineDrawing hld = awlMake2D.GetMake2D(doc);
 
-            if (intersectionMake2D == null) { return; }
+            if (hld == null) { return crvs2D.ToArray(); }
             //TODO: error handling
 
-            List<Curve> intersectionSegmentLst = new List<Curve>();
-            foreach (var make2DCurve in intersectionMake2D.Segments)
+            foreach (var make2DCurve in hld.Segments)
             {
                 //Check for parent curve. Discard if not found.
                 if (make2DCurve?.ParentCurve == null ||
@@ -440,11 +420,11 @@ namespace AutoLineWeight_V6
                     continue;
 
                 var crv = make2DCurve.CurveGeometry.DuplicateCurve();
-                intersectionSegmentLst.Add(crv);
+                crvs2D.Add(crv);
             }
 
-            intersectionSegments = intersectionSegmentLst.ToArray();
-            intersectionBB = intersectionMake2D.BoundingBox(false);
+            bb = hld.BoundingBox(false);
+            return crvs2D.ToArray();
         }
     }
 }

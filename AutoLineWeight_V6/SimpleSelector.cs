@@ -1,19 +1,10 @@
 ﻿/*
 -----------------------------------------------------------------------------------------
-
-This class accesses user-selected geometry. It accepts both preselected and postselected 
-geometry, deselecting both after processing. This class can be inherited from as a parent
-class for any selector that needs both preselect and postselect. Options can be added as
-needed.
-
------------------------------------------------------------------------------------------
 created 11/30/2023
-Ennead Architects
 
 Chloe Xu
-chloe.xu@ennead.com
-Last edited:01/03/2024
-
+guangyu.xu0630@gmail.com
+Last edited:03/20/2024
 -----------------------------------------------------------------------------------------
 */
 
@@ -25,20 +16,18 @@ using Rhino.Input.Custom;
 
 namespace AutoLineWeight_V6
 {
+    /// <summary>
+    /// Accesses user-selected geometry. Can be inherited from as parent class for any
+    /// selector that uses both pre and post select. Options added as needed.
+    /// </summary>
     public class SimpleSelector
     {
         string promptMessage = "Select geometry.";
         ObjRef[] selection;
 
-        public SimpleSelector()
-        {
-            Instance = this;
-        }
+        public SimpleSelector() { }
 
-        ///<summary>The only instance of the MyCommand command.</summary>
-        public static SimpleSelector Instance { get; private set; }
-
-        protected Result RunCommand(RhinoDoc doc, RunMode mode)
+        protected Result UserSelct (RhinoDoc doc)
         {
             // Initialize getobject
             GetObject getObject = new GetObject();
@@ -159,7 +148,7 @@ namespace AutoLineWeight_V6
         /// <returns> an array of ObjRefs containing selection results. </returns>
         public ObjRef[] GetSelection()
         {
-            this.RunCommand(RhinoDoc.ActiveDoc, RunMode.Interactive);
+            this.UserSelct(RhinoDoc.ActiveDoc);
             return this.selection;
         }
     }
