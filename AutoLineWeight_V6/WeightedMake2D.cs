@@ -48,15 +48,8 @@ namespace AutoLineWeight_V6
         // initialize transformation (move and flatten)
         Transform flatten;
 
-        // initialize user options:
-        // color by source, include intersect, include clipping, include hidden,
-        // include silhouette
-        bool colorBySrc = true;
-        bool addIntersect = true;
-        bool meshBrep = false;
-        bool addClip = false;
-        bool addHid = false;
-        bool addSil = false;
+        // initialize user options
+        ALWOptions args = new ALWOptions();
 
         // initialize layer management
         LayerManager LM;
@@ -86,23 +79,19 @@ namespace AutoLineWeight_V6
 
             // aquires user selection
             ALWSelector selectObjs = new ALWSelector();
-            selectObjs.SetDefaultValues(addClip, addHid, 
-                addSil, addIntersect, colorBySrc, meshBrep);
             ObjRef[] objRefs = selectObjs.GetSelection();
-            // aquires user options
-            this.colorBySrc = selectObjs.colorBySource;
-            this.addIntersect = selectObjs.includeIntersect;
-            this.addClip = selectObjs.includeClipping;
-            this.addHid = selectObjs.includeHidden;
-            this.addSil = selectObjs.includeSceneSilhouette;
-            this.meshBrep = selectObjs.meshBrepIntersect;
+            
             // resolves conflict between silhouette and clipping
-            if (this.addSil) { this.addClip = false; }
-            if (!this.addIntersect) { this.meshBrep = false; }
+            if (args.addSil) { args.addClip = false; }
+            if (!args.addIntersect) { args.meshBrep = false; }
 
             // error aquireing user selection
             if (objRefs == null) { return Result.Cancel; }
 
+            ALWDialog optDialog = new ALWDialog(args);
+            bool res = optDialog.ShowModal(Rhino.UI.RhinoEtoApp.MainWindow);
+            if (!res) { return Result.Failure; }
+            args = optDialog.Results;
 
             // start stopwatch for entire process
             Stopwatch watch0 = Stopwatch.StartNew();
@@ -110,7 +99,7 @@ namespace AutoLineWeight_V6
 
             // create geometry container and parse blocks
 
-            GeometryContainer gc = new GeometryContainer(objRefs, addSil || meshBrep);
+            GeometryContainer gc = new GeometryContainer(objRefs, args.addSil || args.meshBrep);
             RhinoApp.WriteLine(" ---------------- ");
             RhinoApp.WriteLine(gc.GetCount().ToString() 
                 + " objects prior to exploding blocks");
@@ -124,11 +113,11 @@ namespace AutoLineWeight_V6
             Curve[] intersects2D = { };
             BoundingBox intersectsBB = new BoundingBox();
 
-            if (this.addIntersect)
+            if (args.addIntersect)
             {
                 // calculate the intersection between selected breps
                 Stopwatch watch1 = Stopwatch.StartNew();
-                intersects3D = GeometryIntersects.GetIntersects(expGC, meshBrep);
+                intersects3D = GeometryIntersects.GetIntersects(expGC, args.meshBrep);
                 intersects2D = CurvesMake2D(doc, intersects3D, out intersectsBB);
                 watch1.Stop();
                 RhinoApp.WriteLine("Calculating geometry intersects {0} miliseconds.",
@@ -139,7 +128,7 @@ namespace AutoLineWeight_V6
             // compute a make2D for selected geometry plus intersections
             Stopwatch watch2 = Stopwatch.StartNew();
             ALWMake2D awlMake2D = new ALWMake2D(expGC, intersects3D,
-                currentViewport, addClip, addHid);
+                currentViewport, args.addClip, args.addHid);
             HiddenLineDrawing hld = awlMake2D.GetMake2D(doc);
             if (hld == null) { return Result.Failure; }
             // recalculate flatten
@@ -168,7 +157,7 @@ namespace AutoLineWeight_V6
 
 
             // generate outlines if required
-            if (this.addSil)
+            if (args.addSil)
             {
                 Stopwatch watch5 = Stopwatch.StartNew();
                 MakeOutline(doc, expGC);
@@ -215,7 +204,7 @@ namespace AutoLineWeight_V6
                 return;
 
             if (make2DCurve.SegmentVisibility == HiddenLineDrawingSegment.Visibility.Hidden
-                && this.addHid == false) return;
+                && args.addHid == false) return;
 
             var crv = make2DCurve.CurveGeometry.DuplicateCurve();
 
@@ -227,7 +216,7 @@ namespace AutoLineWeight_V6
             ObjRef srcRef = new ObjRef((Guid)source.Tag);
             RhinoObject sourceObj = srcRef.Object();
 
-            if (this.colorBySrc && sourceObj != null)
+            if (args.colorBySrc && sourceObj != null)
             {
                 attr.PlotColorSource = ObjectPlotColorSource.PlotColorFromObject;
                 attr.ColorSource = ObjectColorSource.ColorFromObject;
@@ -259,7 +248,7 @@ namespace AutoLineWeight_V6
                 attr.SetUserString("Siltype", silType.ToString());
                 // sort segments into layers based on outline and concavity
 
-                if (silType == SilhouetteType.SectionCut && addClip)
+                if (silType == SilhouetteType.SectionCut && args.addClip)
                 {
                     attr.LayerIndex = clipLyrIdx;
 
@@ -348,8 +337,8 @@ namespace AutoLineWeight_V6
         {
             string[] level2Lyrs = { null, "WT_Outline", "WT_Convex", "WT_Concave" };
             // add clipping/silhouette layers if necessary
-            if (this.addSil) { level2Lyrs[0] = "WT_Silhouette"; }
-            else if (this.addClip) { level2Lyrs[0] = "WT_Cut"; }
+            if (args.addSil) { level2Lyrs[0] = "WT_Silhouette"; }
+            else if (args.addClip) { level2Lyrs[0] = "WT_Cut"; }
 
             LM = new LayerManager(doc);
 
@@ -358,7 +347,7 @@ namespace AutoLineWeight_V6
 
             LM.GradientWeightAssign(level2Lyrs, 0.15, 1.5);
 
-            if (this.addHid)
+            if (args.addHid)
             {
                 LM.Add("WT_Hidden", "WT_Make2D");
                 Layer hiddenLyr = LM.GetLayer("WT_Hidden");
@@ -406,7 +395,7 @@ namespace AutoLineWeight_V6
 
             // generate this drawing only if there are intersects
             ALWMake2D awlMake2D = new ALWMake2D(crvs3D,
-                currentViewport, addClip, addHid);
+                currentViewport, args.addClip, args.addHid);
             HiddenLineDrawing hld = awlMake2D.GetMake2D(doc);
 
             if (hld == null) { return crvs2D.ToArray(); }
